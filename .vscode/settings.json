@@ -1,0 +1,15 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}"
+    ],
+    "python.pydev.autoDetectProjects": false,
+    "python.pydev.pythonExecutable": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+    "python.pydev.pythonPath": [
+        "${workspaceFolder}"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "tests"
+    ]
+}

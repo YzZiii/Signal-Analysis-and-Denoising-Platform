@@ -23,7 +23,12 @@ Python installer; on Linux it may need to be installed as an operating-system pa
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -r Requirements.txt
+python -m pip install -e .
 ```
+
+The editable install and the project-level `.vscode/settings.json` allow both PyDev
+and Pylance to resolve the `Algorithm` and `UI` packages. After creating the virtual
+environment, reload VS Code or run **PyDev: Clear caches** once.
 
 ## Run the GUI
 
