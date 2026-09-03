@@ -12,6 +12,7 @@
 | AC-08 | Document the synthetic-data limitation. | README scope and limitations section |
 | AC-09 | Reject invalid parameters and inconsistent workflow state. | Configuration validation and stage-state checks |
 | AC-10 | Pass backend unit and integration tests. | `python -m pytest` |
+| AC-11 | Explore a synthetic MEG field in a rotatable 3D view. | 3D Field Map page, time slider, mode selector, and preset views |
 
 ## Backend-GUI interface
 

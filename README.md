@@ -11,6 +11,7 @@ not a clinical or diagnostic system.
 - Butterworth low-pass and band-pass filters, notch filtering, and a combined method.
 - SNR, RMSE, and correlation evaluation against the known clean reference.
 - Time-domain and power-spectrum visualisation in a Tkinter GUI.
+- Interactive rotatable 3D virtual-sensor field map with clean/noisy/denoised modes.
 - CSV/JSON result export and a repeatable command-line experiment runner.
 - Unit and integration tests.
 
@@ -62,4 +63,6 @@ noise models are controlled approximations and do not reproduce the full spatial
 sensor, or biological complexity of clinical MEG recordings. ICA is deliberately not
 included in the core single-channel workflow because meaningful ICA requires
 multiple mixed observations. Real-data compatibility, multichannel simulation, ICA,
-and AI denoising remain optional extensions.
+and AI denoising remain optional extensions. The 3D field map is a synthetic virtual
+sensor projection for education and interface exploration; it is not anatomical source
+localisation or a clinical interpretation tool.
