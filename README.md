@@ -1,8 +1,8 @@
 # MEG Signal Analysis and Denoising Platform
 
-A Tkinter desktop prototype for controlled, reproducible evaluation of denoising
-methods on synthetic MEG-like signals. It is an engineering research prototype,
-not a clinical or diagnostic system.
+A Tkinter desktop prototype with two isolated workflows: controlled synthetic-data
+validation and read-only analysis of imported real MEG recordings. It is an
+engineering research prototype, not a clinical or diagnostic system.
 
 ## Core capabilities
 
@@ -11,7 +11,11 @@ not a clinical or diagnostic system.
 - Butterworth low-pass and band-pass filters, notch filtering, and a combined method.
 - SNR, RMSE, and correlation evaluation against the known clean reference.
 - Time-domain and power-spectrum visualisation in a Tkinter GUI.
-- Interactive rotatable 3D virtual-sensor field map with clean/noisy/denoised modes.
+- Simulation Mode for repeatable functional verification with known ground truth.
+- Real Data Mode for FIF/FIF.GZ, CTF `.ds`, KIT SQD/CON, CSV/TSV/TXT and NumPy data.
+- Channel selection, reference-free metrics and read-only real-recording previews.
+- Interactive anatomical 3D brain orientation model with rotatable sensor fields.
+- Clear Superior/Inferior, Anterior/Posterior and left/right preset orientations.
 - CSV/JSON result export and a repeatable command-line experiment runner.
 - Unit and integration tests.
 
@@ -40,6 +44,21 @@ python app.py
 Use the buttons from left to right: **Generate Signal**, **Add Noise**, then
 **Denoise Signal**. The **Run Full Pipeline** button performs all three stages.
 
+The header contains a segmented **Simulation Mode / Real Data Mode** selector. In
+Real Data Mode, choose **Load MEG File** for FIF/KIT or converted arrays, or **Load
+CTF .ds Folder** for CTF recordings. The source file is never modified. The current
+prototype limits its analysis working set to an in-memory preview of at most 60
+seconds and 128 same-type MEG channels.
+
+Delimited files may contain a first column named `time`, `time_s`, `times`,
+`timestamp`, `seconds`, or `sec`; the sampling rate is then inferred from its regular
+spacing. Otherwise the fallback sampling-rate field is used. NumPy inputs may be a
+1-D signal or a 2-D array; select **Channels × Samples** or **Samples × Channels**
+before loading so short multichannel recordings are never silently guessed. NPZ
+archives can also provide `data`, `sample_rate`/`sfreq`, and `channel_names` arrays.
+Converted text and compressed NPZ inputs are limited to 256 MiB; pre-crop larger
+converted files before import.
+
 ## Run tests
 
 ```powershell
@@ -58,11 +77,19 @@ experiment records the random seed and processing parameters so it can be repeat
 
 ## Scope and limitations
 
-The clean reference is a simplified sum of sinusoidal frequency components. The
-noise models are controlled approximations and do not reproduce the full spatial,
-sensor, or biological complexity of clinical MEG recordings. ICA is deliberately not
-included in the core single-channel workflow because meaningful ICA requires
-multiple mixed observations. Real-data compatibility, multichannel simulation, ICA,
-and AI denoising remain optional extensions. The 3D field map is a synthetic virtual
-sensor projection for education and interface exploration; it is not anatomical source
-localisation or a clinical interpretation tool.
+The clean simulation reference is a simplified sum of sinusoidal frequency
+components. Its noise models do not reproduce the full spatial, sensor, or biological
+complexity of clinical MEG. Because real recordings have no known clean reference,
+Real Data Mode deliberately does not report synthetic SNR/RMSE/correlation scores;
+it reports descriptive RMS, peak-to-peak amplitude, dominant frequency and line-noise
+attenuation instead.
+
+The procedural brain surface provides anatomical orientation only. Simulation Mode
+colours virtual sensors. Real Data Mode displays a 3D sensor field only when a native
+recording provides valid MEG sensor coordinates; converted arrays show an explicit
+unavailable state. Neither view performs MRI co-registration, forward modelling or
+inverse source localisation, so it must not be used for diagnosis. Imported recordings
+are ignored by Git under `Data/`; real-data exports default outside the project and
+cannot be saved inside the project folder. Their JSON metadata withholds the source
+filename and channel name. Always review derived files for identifiable information
+before sharing them.

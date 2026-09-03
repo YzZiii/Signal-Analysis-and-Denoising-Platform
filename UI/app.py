@@ -19,8 +19,10 @@ from Algorithm.denoising import denoise_signal
 from Algorithm.metrics import MetricSet, evaluate_signal
 from Algorithm.noise import NoiseResult, add_noise
 from Algorithm.pipeline import ExperimentResult, run_experiment
+from Algorithm.real_data import RealRecording
 from Algorithm.signal_generation import generate_signal
 from UI.brain_view import BrainFieldView
+from UI.real_data_view import RealDataView
 
 
 COLORS = {
@@ -65,12 +67,14 @@ class MEGPlatformApp:
         self.last_result: ExperimentResult | None = None
         self.active_signal_config: SignalConfig | None = None
         self.active_noise_config: NoiseConfig | None = None
+        self.current_data_mode = "simulation"
+        self.current_page = "analysis"
 
         self._build_variables()
         self._configure_style()
         self._build_layout()
         self._draw_signals()
-        self.show_page("analysis")
+        self.set_data_mode("simulation", announce=False)
 
     def _build_variables(self) -> None:
         self.sample_rate = tk.StringVar(value="1000")
@@ -108,6 +112,9 @@ class MEGPlatformApp:
         self.status_text = tk.StringVar(value="Ready — generate a signal to begin")
         self.sample_rate_chip = tk.StringVar(value="1000 Hz")
         self.duration_chip = tk.StringVar(value="5.0 s")
+        self.scope_text = tk.StringVar(
+            value="Synthetic validation data\nNot for clinical use"
+        )
 
     def _configure_style(self) -> None:
         style = ttk.Style(self.root)
@@ -222,6 +229,26 @@ class MEGPlatformApp:
             font=("Segoe UI", 10, "bold"),
         )
         style.configure(
+            "Mode.TButton",
+            background=COLORS["inset"],
+            foreground=COLORS["muted"],
+            borderwidth=0,
+            padding=(12, 7),
+        )
+        style.map(
+            "Mode.TButton",
+            background=[("active", "#17384B")],
+            foreground=[("active", COLORS["text"])],
+        )
+        style.configure(
+            "ModeActive.TButton",
+            background="#123A3E",
+            foreground=COLORS["teal"],
+            borderwidth=0,
+            padding=(12, 7),
+            font=("Segoe UI", 9, "bold"),
+        )
+        style.configure(
             "Primary.TButton",
             background="#149C9A",
             foreground="#FFFFFF",
@@ -320,7 +347,7 @@ class MEGPlatformApp:
         self.nav_buttons: dict[str, ttk.Button] = {}
         for key, label in (
             ("analysis", "▦   Signal Analysis"),
-            ("brain", "◌   3D MEG Field"),
+            ("brain", "◌   3D Sensor Field"),
         ):
             button = ttk.Button(
                 rail,
@@ -338,7 +365,7 @@ class MEGPlatformApp:
         ).pack(anchor=tk.W, padx=14)
         ttk.Label(
             rail,
-            text="Synthetic signals only\nNot for clinical use",
+            textvariable=self.scope_text,
             style="RailMuted.TLabel",
             justify=tk.LEFT,
         ).pack(anchor=tk.W, padx=16, pady=10)
@@ -349,6 +376,17 @@ class MEGPlatformApp:
         self.pages["analysis"] = analysis_page
         self._build_analysis_page(analysis_page)
 
+        real_page = ttk.Frame(self.page_host, style="App.TFrame")
+        real_page.place(relx=0, rely=0, relwidth=1, relheight=1)
+        self.pages["real"] = real_page
+        self.real_data_view = RealDataView(
+            real_page,
+            self.status_text.set,
+            self._on_real_recording_loaded,
+            self._refresh_brain_view,
+        )
+        self.real_data_view.pack(fill=tk.BOTH, expand=True)
+
         brain_page = ttk.Frame(self.page_host, style="App.TFrame")
         brain_page.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.pages["brain"] = brain_page
@@ -357,6 +395,7 @@ class MEGPlatformApp:
             self._signal_config,
             self._noise_config,
             self.status_text.set,
+            self.real_data_view.spatial_frame,
         )
         self.brain_view.pack(fill=tk.BOTH, expand=True)
 
@@ -379,7 +418,21 @@ class MEGPlatformApp:
         ttk.Label(header, textvariable=self.sample_rate_chip, style="Chip.TLabel").pack(
             side=tk.RIGHT, padx=(8, 0)
         )
-        ttk.Label(header, text="Simulation Mode", style="Chip.TLabel").pack(side=tk.RIGHT)
+        mode_switch = ttk.Frame(header, style="Inset.TFrame")
+        mode_switch.pack(side=tk.RIGHT, padx=(12, 0))
+        self.mode_buttons: dict[str, ttk.Button] = {}
+        for mode, label in (
+            ("simulation", "Simulation Mode"),
+            ("real", "Real Data Mode"),
+        ):
+            button = ttk.Button(
+                mode_switch,
+                text=label,
+                style="Mode.TButton",
+                command=lambda selected=mode: self.set_data_mode(selected),
+            )
+            button.pack(side=tk.LEFT)
+            self.mode_buttons[mode] = button
         ttk.Separator(parent).pack(fill=tk.X)
 
     def _build_analysis_page(self, parent: ttk.Frame) -> None:
@@ -576,11 +629,78 @@ class MEGPlatformApp:
             self._entry(parent, row, label, variable)
 
     def show_page(self, name: str) -> None:
-        self.pages[name].tkraise()
+        target = (
+            "real"
+            if name == "analysis" and self.current_data_mode == "real"
+            else "analysis"
+            if name == "analysis"
+            else name
+        )
+        self.pages[target].tkraise()
+        self.current_page = target
+        active_navigation = "brain" if target == "brain" else "analysis"
         for key, button in self.nav_buttons.items():
-            button.configure(style="NavActive.TButton" if key == name else "Nav.TButton")
-        if name == "brain":
-            self.brain_view.update_field()
+            button.configure(
+                style="NavActive.TButton" if key == active_navigation else "Nav.TButton"
+            )
+        if target == "brain":
+            self._refresh_brain_view()
+
+    def set_data_mode(self, mode: str, announce: bool = True) -> None:
+        if mode not in {"simulation", "real"}:
+            raise ValueError(f"Unknown data mode: {mode}.")
+        self.current_data_mode = mode
+        for key, button in self.mode_buttons.items():
+            button.configure(
+                style="ModeActive.TButton" if key == mode else "Mode.TButton"
+            )
+        if mode == "simulation":
+            self.scope_text.set("Synthetic validation data\nNot for clinical use")
+            config = self._display_signal_config()
+            self.sample_rate_chip.set(f"{config.sample_rate:g} Hz")
+            self.duration_chip.set(f"{config.duration:g} s")
+        else:
+            self.scope_text.set("Imported recordings\nResearch analysis only")
+            recording = self.real_data_view.recording
+            self.sample_rate_chip.set(
+                "— Hz" if recording is None else f"{recording.sample_rate:g} Hz"
+            )
+            self.duration_chip.set(
+                "— s" if recording is None else f"{recording.duration:.3g} s"
+            )
+        if self.current_page != "brain":
+            self.show_page("analysis")
+        else:
+            self._refresh_brain_view()
+        if announce:
+            self.status_text.set(
+                "Simulation mode — controlled validation workflow"
+                if mode == "simulation"
+                else "Real Data mode — load a recording to begin"
+            )
+
+    def _on_real_recording_loaded(self, recording: RealRecording) -> None:
+        if self.current_data_mode == "real":
+            self.sample_rate_chip.set(f"{recording.sample_rate:g} Hz")
+            self.duration_chip.set(f"{recording.duration:.3g} s")
+        self._refresh_brain_view()
+
+    def _refresh_brain_view(self) -> None:
+        if self.current_data_mode == "simulation":
+            config = self._display_signal_config()
+            self.brain_view.set_data_mode("simulation", config.duration)
+        else:
+            recording = self.real_data_view.recording
+            duration = 1.0 if recording is None else recording.last_time
+            self.brain_view.set_data_mode("real", duration)
+
+    def _display_signal_config(self) -> SignalConfig:
+        if self.active_signal_config is not None:
+            return self.active_signal_config
+        try:
+            return self._signal_config()
+        except ValueError:
+            return SignalConfig()
 
     @staticmethod
     def _number(variable: tk.StringVar, label: str, integer: bool = False) -> float | int:
@@ -646,9 +766,10 @@ class MEGPlatformApp:
             )
 
     def _sync_header(self, config: SignalConfig) -> None:
-        self.sample_rate_chip.set(f"{config.sample_rate:g} Hz")
-        self.duration_chip.set(f"{config.duration:g} s")
-        self.brain_view.set_duration(config.duration)
+        if self.current_data_mode == "simulation":
+            self.sample_rate_chip.set(f"{config.sample_rate:g} Hz")
+            self.duration_chip.set(f"{config.duration:g} s")
+            self.brain_view.set_duration(config.duration)
 
     def generate_stage(self) -> None:
         self._run_action(self._generate_stage)
